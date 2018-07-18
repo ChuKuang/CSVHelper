@@ -7,7 +7,7 @@ using System;
 
 namespace WZFrame
 {
-    public class SSVHelper
+    public class CSVHelper
     {
         public static Dictionary<int, T> GetDataTable<T>(string csvTableStr) where T : CSVDataBase, new()
         {
@@ -31,7 +31,7 @@ namespace WZFrame
                 string[] values = lines[i].Split(',');
                 int major = GetInt(values[0]);
 
-                for (int j = 0; j < values.Length; j++)
+                for (int j = 0; j < pins.Length; j++)
                 {
                     string value = values[j].Trim();
                     Type type = pins[j].PropertyType;
