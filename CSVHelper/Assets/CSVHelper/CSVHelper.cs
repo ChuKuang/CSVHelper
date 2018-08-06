@@ -70,7 +70,7 @@ namespace WZFrame
 
             foreach (PropertyInfo item in keyProper)
             {
-                content += GetTypeName(item.PropertyType.Name);
+                content += GetTypeName(item.PropertyType.Name) + ",";
             }
             content.Trim();
             content += "\n";
