@@ -62,7 +62,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Assets\CSVHelper\CSVDataBase.cs" />
-    <Compile Include="Assets\CSVHelper\SSVHelper.cs" />
+    <Compile Include="Assets\CSVHelper\CSVHelper.cs" />
     <Reference Include="UnityEditor.StandardEvents">
       <HintPath>E:/GitHubWork/CSVHelper/CSVHelper/Library/ScriptAssemblies/UnityEditor.StandardEvents.dll</HintPath>
     </Reference>

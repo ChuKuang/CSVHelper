@@ -11,7 +11,6 @@ namespace WZFrame
     {
         public static Dictionary<int, T> GetDataTable<T>(string csvTableStr) where T : CSVDataBase, new()
         {
-
             string content = csvTableStr.Replace("\r", "");
             string[] lines = content.Split('\n');
             if (lines.Length < 3)
@@ -21,38 +20,43 @@ namespace WZFrame
             }
 
             Dictionary<int, T> dic = new Dictionary<int, T>();
-            //string keyLinse = lines[0];
 
+            //先按key归类将值读取到集合中
+            Dictionary<string,List<string>> strDic =  ReadToDic(lines);
+         
             PropertyInfo[] pins = typeof(T).GetProperties();
 
+            //从上面的集合中根据属性名取到对应值
             for (int i = 2; i < lines.Length; i++)
             {
                 T data = new T();
-                string[] values = lines[i].Split(',');
-                int major = GetInt(values[0]);
 
                 for (int j = 0; j < pins.Length; j++)
                 {
-                    string value = values[j].Trim();
-                    Type type = pins[j].PropertyType;
+                    if(strDic.ContainsKey(pins[j].Name))
+                    {
+                        Type type = pins[j].PropertyType;
 
-                    if (type == typeof(int))
-                    {
-                        pins[j].SetValue(data, GetInt(value), null);
-                    }
-                    if (type == typeof(float))
-                    {
-                        pins[j].SetValue(data, GetFloat(value), null);
-                    }
-                    if (type == typeof(bool))
-                    {
-                        pins[j].SetValue(data, GetBool(value), null);
-                    }
-                    else
-                    {
-                        pins[j].SetValue(data, GetString(value), null);
+                        if (type == typeof(int))
+                        {
+                            pins[j].SetValue(data, GetInt(strDic[pins[j].Name][i -2]), null);
+                        }
+                        if (type == typeof(float))
+                        {
+                            pins[j].SetValue(data, GetFloat(strDic[pins[j].Name][i - 2]), null);
+                        }
+                        if (type == typeof(bool))
+                        {
+                            pins[j].SetValue(data, GetBool(strDic[pins[j].Name][i - 2]), null);
+                        }
+                        else
+                        {
+                            pins[j].SetValue(data, GetString(strDic[pins[j].Name][i - 2]), null);
+                        }
                     }
                 }
+
+                int major = GetInt(lines[i].Split(',')[0]);
                 dic.Add(major, data);
             }
 
@@ -98,6 +102,34 @@ namespace WZFrame
                 content += content.Remove(content.Length - 1);
             }
             return content;
+        }
+
+
+        /// <summary>
+        /// 根据key将对应的值读入到list中
+        /// </summary>
+        /// <returns></returns>
+        public static Dictionary<string, List<string>> ReadToDic(string[] lines)
+        {
+            Dictionary<string, List<string>> dic = new Dictionary<string, List<string>>();
+            string[] keys = lines[1].Split(',');
+            for(int i = 2; i < lines.Length; i++)
+            {
+                string[] values = lines[i].Split(',');
+                for(int j = 0; j < values.Length; j++)
+                {
+                    if(dic.ContainsKey(keys[j]))
+                    {
+                        dic[keys[j]].Add(values[j]);
+                    }
+                    else
+                    {
+                        dic.Add(keys[j], new List<string>() { values[j] });
+                    }
+                }
+            }
+
+            return dic;
         }
 
 
