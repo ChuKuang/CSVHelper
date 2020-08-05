@@ -4,9 +4,10 @@ using UnityEngine;
 
 namespace WZFrame
 {
+    //该类是描述CSV表的Key的通用基础类
     public class CSVDataBase
     {
-        //子类里面定义属性，目前只支持（int ，string, float, bool）
+        //子类里面定义属性
         //public int Id { get; set; }
     }
 }
