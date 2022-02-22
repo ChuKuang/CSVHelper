@@ -3,23 +3,45 @@ using System.Collections.Generic;
 using UnityEngine;
 using System.Reflection;
 using System;
+using System.IO;
 
-
-namespace WZFrame
+namespace CSV
 {
     public class CSVHelper
     {
-        public static Dictionary<int, T> GetTableData<T>(string csvTableStr) where T : CSVDataBase, new()
+
+        //最小行数
+        //第一行备注
+        //第二行类型
+        //第三行属性名
+        public const int Minlines = 3;
+
+        //中文备注index 从0开始也就是第1行
+        public const int PropertyDesIndex = 0;
+
+        //类型index 从0开始也就是第2行
+        public const int PropertyTypeIndex = 1;
+
+        //属性key index 从0开始也就是第3行
+        public const int PropertyKeyIndex = 2;
+
+        //表数据读取index   从0 开始 也就是第4行
+        public const int PropertyValueIndex = 3;
+
+ 
+
+
+
+        public static Dictionary<int, T> ToTableObject<T>(string csvTableStr) where T : CSVDataBase, new()
         {
+            Dictionary<int, T> dic = new Dictionary<int, T>();
             string content = csvTableStr.Replace("\r", "");
             string[] lines = content.Split('\n');
-            if (lines.Length < 3)
+            if (lines.Length <= Minlines)
             {
                 Debug.Log("the table is empty");
-                return null;
+                return dic;
             }
-
-            Dictionary<int, T> dic = new Dictionary<int, T>();
 
             //先按key归类将值读取到集合中
             Dictionary<string,List<string>> strDic =  ReadToDic(lines);
@@ -27,9 +49,11 @@ namespace WZFrame
             PropertyInfo[] pins = typeof(T).GetProperties();
 
             //从上面的集合中根据属性名取到对应值
-            for (int i = 2; i < lines.Length; i++)
+            for (int i = PropertyValueIndex; i < lines.Length; i++)
             {
                 T data = new T();
+
+                int readDicListIndex = i - PropertyValueIndex;
 
                 for (int j = 0; j < pins.Length; j++)
                 {
@@ -39,27 +63,27 @@ namespace WZFrame
 
                         if (type == typeof(int))
                         {
-                            pins[j].SetValue(data, GetInt(strDic[pins[j].Name][i -2]), null);
+                            pins[j].SetValue(data, GetInt(strDic[pins[j].Name][readDicListIndex]), null);
                         }
                         else if (type == typeof(float))
                         {
-                            pins[j].SetValue(data, GetFloat(strDic[pins[j].Name][i - 2]), null);
+                            pins[j].SetValue(data, GetFloat(strDic[pins[j].Name][readDicListIndex]), null);
                         }
                         else if(type == typeof(bool))
                         {
-                            pins[j].SetValue(data, GetBool(strDic[pins[j].Name][i - 2]), null);
+                            pins[j].SetValue(data, GetBool(strDic[pins[j].Name][readDicListIndex]), null);
                         }
                         else if(type == typeof(string[]))
                         {
-                            pins[j].SetValue(data, GetStringArray(strDic[pins[j].Name][i - 2]), null);
+                            pins[j].SetValue(data, GetStringArray(strDic[pins[j].Name][readDicListIndex]), null);
                         }
                         else if (type == typeof(int[]))
                         {
-                            pins[j].SetValue(data, GetIntArray(strDic[pins[j].Name][i - 2]), null);
+                            pins[j].SetValue(data, GetIntArray(strDic[pins[j].Name][readDicListIndex]), null);
                         }
                         else
                         {
-                            pins[j].SetValue(data, GetString(strDic[pins[j].Name][i - 2]), null);
+                            pins[j].SetValue(data, GetString(strDic[pins[j].Name][readDicListIndex]), null);
                         }
                     }
                 }
@@ -72,52 +96,93 @@ namespace WZFrame
         }
 
 
-        /// <summary>
-        /// 序列化字典数据为CSV字符串格式
-        /// 生成的第一行是类型（int， string等）
-        /// 第二行属性名字，对应类属性名
-        /// 第三行开始是属性值
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="dictionary"></param>
-        /// <returns></returns>
-        public static string GetCSVContent<T>(Dictionary<int, T> dictionary) where T : CSVDataBase, new()
+        public static string ToCSV<T>(Dictionary<int, T> tableData, string sourcesTablePath) where T : CSVDataBase, new()
         {
             string content = string.Empty;
             PropertyInfo[] keyProper = typeof(T).GetProperties();
 
-            foreach (PropertyInfo item in keyProper)
+            //拼接第一行备注
+            Dictionary<string, string> noteDic = GetTableNote(sourcesTablePath);
+            foreach (var item in keyProper)
             {
-                content += GetTypeName(item.PropertyType.Name) + ",";
+                if(noteDic.ContainsKey(item.Name))
+                {
+                    content += noteDic[item.Name] + ",";
+                }
+                else
+                {
+                    if(item.IsDefined(typeof(SkipAttribute)))
+                    {
+                        content += "skiprow,";
+                    }
+                    else if (item.IsDefined(typeof(DescriptionAttribute)))
+                    {
+                        content += item.GetCustomAttribute<DescriptionAttribute>().description;
+                        content += ",";
+                    }
+                    else
+                    {
+                        content += " ,";
+                    }
+                }
             }
-            content.Trim();
+
+            content = content.Remove(content.Length - 1);
             content += "\n";
 
-            foreach (PropertyInfo item in keyProper)
+            //拼接第二行属性类型
+            foreach (var item in keyProper)
+            {
+                if(item.IsDefined(typeof(SkipAttribute)))
+                    content += "skiprow,";
+                else
+                    content += GetTypeName(item.PropertyType.Name) + ",";
+            }
+
+            content = content.Remove(content.Length - 1);
+            content += "\n";
+
+            //拼接第三行属性名
+            foreach (var item in keyProper)
             {
                 content += item.Name + ",";
             }
-            content.Trim();
+
+            content = content.Remove(content.Length - 1);
+    
+            content += ToCSV<T>(tableData);
+
+            return content;
+        }
+
+
+
+       
+        private static string ToCSV<T>(Dictionary<int, T> dictionary) where T : CSVDataBase, new()
+        {
+            string content = string.Empty;
+            PropertyInfo[] keyProper = typeof(T).GetProperties();
+
 
             foreach (T data in dictionary.Values)
             {
                 content += "\n";
-
                 //这路通过反射，获取所有值拼接成字符串
                 foreach (PropertyInfo item in keyProper)
                 {
                     System.Object value = item.GetValue(data, null);
-                    if (data == null)
+                    if (value == null)
                         value = string.Empty;
                     else if (item.PropertyType == typeof(string[]))
                         value = SetArrayToString(value);
                     else if (item.PropertyType == typeof(int[]))
                         value = SetArrayToInt(value);
-
+                    else if (item.PropertyType == typeof(bool))
+                        value = SetBoolToInt(value);
                     content += (value.ToString() + ",").Trim();
                 }
 
-                content += content.Remove(content.Length - 1);
+                content = content.Remove(content.Length - 1);
             }
             return content;
         }
@@ -130,8 +195,8 @@ namespace WZFrame
         public static Dictionary<string, List<string>> ReadToDic(string[] lines)
         {
             Dictionary<string, List<string>> dic = new Dictionary<string, List<string>>();
-            string[] keys = lines[1].Split(',');
-            for(int i = 2; i < lines.Length; i++)
+            string[] keys = lines[PropertyKeyIndex].Split(',');
+            for(int i = PropertyValueIndex; i < lines.Length; i++)
             {
                 string[] values = lines[i].Split(',');
                 for(int j = 0; j < values.Length; j++)
@@ -148,6 +213,33 @@ namespace WZFrame
             }
 
             return dic;
+        }
+
+
+        public static Dictionary<string, string> GetTableNote(string tableSourcePath)
+        {
+            Dictionary<string, string> noteDic = new Dictionary<string, string>();
+
+            if(File.Exists(tableSourcePath))
+            {
+                StreamReader sr = File.OpenText(tableSourcePath);
+                string sourceContent = sr.ReadToEnd();
+                sr.Close();
+                sr.Dispose();
+                sourceContent = sourceContent.Replace("\r", "");
+                string[] lines = sourceContent.Split('\n');
+                if(lines.Length > 3)
+                {
+                    string[] keyName = lines[PropertyKeyIndex].Split(',');
+                    string[] note = lines[PropertyDesIndex].Split(',');
+                    for (int i = 0; i < keyName.Length; i++)
+                    {
+                        noteDic.Add(keyName[i], note[i]);
+                    }
+                }
+            }
+
+            return noteDic;
         }
 
         /// <summary>
@@ -192,8 +284,7 @@ namespace WZFrame
 
         /// <summary>
         /// 反序列化bool
-        /// 这里我当表里的是"true", "false"
-        //、如果是用0 和1代替的需要更改
+        /// 兼容字符串true false 和 0 ， 1
         /// </summary>
         /// <param name="dText"></param>
         /// <returns></returns>
@@ -202,7 +293,17 @@ namespace WZFrame
             if (string.IsNullOrEmpty(dText))
                 return false;
             else
-                return bool.Parse(dText.ToLower());
+            {
+                bool result;    
+                if(bool.TryParse(dText.ToLower(), out result))
+                {
+                    return result;
+                }
+                else
+                {
+                    return GetInt(dText) > 0;
+                }
+            }
         }
 
 
@@ -217,7 +318,7 @@ namespace WZFrame
             if (string.IsNullOrEmpty(dText))
                 data = new string[] { };
             else
-                data = dText.Split('#');
+                data = dText.Split(';');
 
             int[] intArray = new int[data.Length];
             for (int i = 0; i < data.Length; i++)
@@ -239,7 +340,7 @@ namespace WZFrame
             if (string.IsNullOrEmpty(dText))
                 data = new string[] { };
             else
-                data = dText.Split('#');
+                data = dText.Split(';');
 
             string[] attrsArray = new string[data.Length];
             for (int i = 0; i < data.Length; i++)
@@ -270,7 +371,7 @@ namespace WZFrame
                 {
                     if (string.IsNullOrEmpty(item))
                         continue;
-                    stringValue += item + "#";
+                    stringValue += item + ";";
                 }
                 stringValue = stringValue.Remove(stringValue.Length - 1);
             }
@@ -291,11 +392,27 @@ namespace WZFrame
             {
                 foreach (var item in intArray)
                 {
-                    stringValue += item + "#";
+                    stringValue += item + ";";
                 }
                 stringValue = stringValue.Remove(stringValue.Length - 1);
             }
             return stringValue;
+        }
+
+
+        /// <summary>
+        /// 序列化bool类型为0和1
+        /// </summary>
+        /// <param name="data"></param>
+        /// <returns></returns>
+        public static string SetBoolToInt(object data)
+        {
+            string stringValue = "0";
+            bool value = (bool)data;
+            if (value)
+                stringValue = "1";
+            return stringValue;
+
         }
 
         public static string GetTypeName(string type)
@@ -304,22 +421,22 @@ namespace WZFrame
             switch (type)
             {
                 case "Int32":
-                    name = "int";
+                    name = "Int";
                     break;
                 case "Int32[]":
-                    name = "int[]";
+                    name = "List(Int)";
                     break;
                 case "String":
-                    name = "string";
+                    name = "Str";
                     break;
                 case "String[]":
-                    name = "string[]";
+                    name = "List(Str)";
                     break;
                 case "Single":
-                    name = "float";
+                    name = "Float";
                     break;
                 case "Boolean":
-                    name = "bool";
+                    name = "Bool";
                     break;
                 default:
                     name = type;
